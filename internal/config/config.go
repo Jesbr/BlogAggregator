@@ -5,18 +5,25 @@ import (
 	"os"
 	"path/filepath"
 	"fmt"
+	"context"
+	"time"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"github.com/Jesbr/BlogAggregator/internal/database"
+	"database/sql"
 )
 
 const configFileName = ".gatorconfig.json"
 
 // structs
 type Config struct {
-	DBURL           string `json:"db_url"`
+	DBURL			string `json:"db_url"`
 	CurrentUserName string `json:"current_user_name"`
 }
 
 type State struct {
 	Config *Config
+	DB  *database.Queries
 }
 
 type Command struct {
@@ -110,6 +117,57 @@ func HandlerLogin(s *State, cmd Command) error {
 		return fmt.Errorf("username required")
 	}
 	username := cmd.Args[0]
+
+	// check if user in database
+	_, err := s.DB.GetUser(context.Background(), username)
+		if err != nil {
+			if err == sql.ErrNoRows {
+			return fmt.Errorf("user %s does not exist", username)
+		}
+		return err
+	}
+
+	// set to active user
+	err = s.Config.SetUser(username)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("User set to %s\n", username)
-	return s.Config.SetUser(username)
+	return nil
+}
+
+func HandlerRegister(s *State, cmd Command) error {
+	if len(cmd.Args) == 0 {
+		return fmt.Errorf("username required")
+	}
+
+	name := cmd.Args[0]
+	now := time.Now()
+
+	user, err := s.DB.CreateUser(context.Background(), database.CreateUserParams{
+		ID:        uuid.New(),
+		CreatedAt: now,
+		UpdatedAt: now,
+		Name:      name,
+	})
+
+	// duplicate check
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+			return fmt.Errorf("user already exists")
+		}
+		return err
+	}
+
+	// set current user in config
+	err = s.Config.SetUser(name)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("User created: %s\n", name)
+	fmt.Printf("DEBUG user: %+v\n", user)
+
+	return nil
 }
