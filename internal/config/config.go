@@ -141,7 +141,6 @@ func HandlerRegister(s *State, cmd Command) error {
 	if len(cmd.Args) == 0 {
 		return fmt.Errorf("username required")
 	}
-
 	name := cmd.Args[0]
 	now := time.Now()
 
@@ -168,6 +167,32 @@ func HandlerRegister(s *State, cmd Command) error {
 
 	fmt.Printf("User created: %s\n", name)
 	fmt.Printf("DEBUG user: %+v\n", user)
+
+	return nil
+}
+
+func HandlerReset(s *State, cmd Command) error {
+	err := s.DB.ResetUsers(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Println("Successfully reset Users table")
+	return nil
+}
+
+func HandlerAllUsers(s *State, cmd Command) error {
+	users, err := s.DB.GetUsers(context.Background())
+	if err != nil {
+		return err
+	}
+	
+	for _, u := range users {
+		if s.Config.CurrentUserName == u.Name {
+			fmt.Printf("* %s (current)\n", u.Name)
+		} else {
+			fmt.Printf("* %s\n", u.Name)
+		}
+	}
 
 	return nil
 }

@@ -42,6 +42,8 @@ func main() {
 	cmds := config.NewCommands()
 	cmds.Register("login", config.HandlerLogin)
 	cmds.Register("register", config.HandlerRegister)
+	cmds.Register("reset", config.HandlerReset)
+	cmds.Register("users", config.HandlerAllUsers)
 
 	// parse CLI arguments
 	args := os.Args
