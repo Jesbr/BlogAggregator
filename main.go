@@ -1,71 +1,56 @@
 package main
 
-import _ "github.com/lib/pq"
-
 import (
 	"database/sql"
-	"os"
 	"log"
+	"os"
+
 	"github.com/Jesbr/BlogAggregator/internal/config"
 	"github.com/Jesbr/BlogAggregator/internal/database"
+	_ "github.com/lib/pq"
 )
 
+type state struct {
+	db  *database.Queries
+	cfg *config.Config
+}
+
 func main() {
-	// read config
 	cfg, err := config.Read()
 	if err != nil {
 		log.Fatalf("error reading config: %v", err)
 	}
 
-	// open connection to the database
 	db, err := sql.Open("postgres", cfg.DBURL)
 	if err != nil {
-		log.Fatalf("error opening database: %v", err)
+		log.Fatalf("error connecting to db: %v", err)
 	}
-
-	// check if database is reachable
-	err = db.Ping()
-	if err != nil {
-		log.Fatalf("error connecting to database: %v", err)
-	}
-
-	// initialize queries
+	defer db.Close()
 	dbQueries := database.New(db)
 
-	// create State
-	s := &config.State{
-		Config: &cfg,
-		DB: dbQueries,
+	programState := &state{
+		db:  dbQueries,
+		cfg: &cfg,
 	}
 
-	// create commands instance and register handler
-	cmds := config.NewCommands()
-	cmds.Register("login", config.HandlerLogin)
-	cmds.Register("register", config.HandlerRegister)
-	cmds.Register("reset", config.HandlerReset)
-	cmds.Register("users", config.HandlerAllUsers)
+	cmds := commands{
+		registeredCommands: make(map[string]func(*state, command) error),
+	}
+	cmds.register("login", handlerLogin)
+	cmds.register("register", handlerRegister)
+	cmds.register("reset", handlerReset)
+	cmds.register("users", handlerListUsers)
+	cmds.register("agg", handlerAgg)
 
-	// parse CLI arguments
-	args := os.Args
-	if len(args) < 2 {
-		log.Fatal("no command provided")
+	if len(os.Args) < 2 {
+		log.Fatal("Usage: cli <command> [args...]")
 	}
 
-	cmdName := args[1]
-	cmdArgs := []string{}
-	if len(args) > 2 {
-		cmdArgs = args[2:]
-	}
+	cmdName := os.Args[1]
+	cmdArgs := os.Args[2:]
 
-	// build command
-	cmd := config.Command{
-		Name: cmdName,
-		Args: cmdArgs,
-	}
-
-	// run command
-	err = cmds.Run(s, cmd)
+	err = cmds.run(programState, command{Name: cmdName, Args: cmdArgs})
 	if err != nil {
-		log.Fatalf("error running command: %v", err)
+		log.Fatal(err)
 	}
 }
