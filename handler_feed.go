@@ -58,3 +58,20 @@ func handlerAddFeed(s *state, cmd command) error {
 
 	return nil
 }
+
+func handlerListFeeds(s *state, cmd command) error {
+	feeds, err := s.db.GetFeeds(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldn't list feeds: %w", err)
+	}
+	if len(feeds) == 0 {
+		return fmt.Errorf("No current feeds")
+	}
+	for _, feed := range feeds {
+		fmt.Printf("Name of feed: %v\n", feed.Name)
+		fmt.Printf("URL: %v\n", feed.Url)
+		fmt.Printf("Feed created by: %v\n", feed.UserName)
+		fmt.Println("------------------------------------")
+	}
+	return nil
+}
