@@ -47,7 +47,8 @@ func handlerFollow(s *state, cmd command, user database.User) error {
 		return err
 	}
 
-	fmt.Printf("User %s is now following %s\n", follow.UserName, follow.FeedName)
+	fmt.Println("Feed follow created:")
+	printFeedFollow(follow.UserName, follow.FeedName)
 	return nil
 }
 
@@ -73,25 +74,47 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 }
 
 func handlerUnfollow(s *state, cmd command, user database.User) error {
-	if len(cmd.Args) == 0 {
-		return fmt.Errorf("usage: unfollow <feed_url>")
-	 }
-
-	url := cmd.Args[0]
-
-	ctx := context.Background()
-	_, err := s.db.DeleteFeedFollow(ctx, database.DeleteFeedFollowParams{
-		Name: user.Name,
-		Url: url,	
-		})
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("you are not following this feed")
-		}
-		return fmt.Errorf("couldn't unfollow feed: %w", err)
+	if len(cmd.Args) != 1 {
+		return fmt.Errorf("usage: %s <feed_url>", cmd.Name)
 	}
 
-	fmt.Printf("%s unfollowed feed %s\n",user.Name, url)
+	feed, err := s.db.GetFeedByURL(context.Background(), cmd.Args[0])
+	if err != nil {
+		return fmt.Errorf("couldn't get feed: %w", err)
+	}
+
+	err = s.db.DeleteFeedFollow(context.Background(), database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't delete feed follow: %w", err)
+	}
+
+	fmt.Printf("%s unfollowed successfully!\n", feed.Name)
 	return nil
+}
+
+func handlerListFeedFollows(s *state, cmd command, user database.User) error {
+	feedFollows, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
+	if err != nil {
+		return fmt.Errorf("couldn't get feed follows: %w", err)
+	}
+
+	if len(feedFollows) == 0 {
+		fmt.Println("No feed follows found for this user.")
+		return nil
+	}
+
+	fmt.Printf("Feed follows for user %s:\n", user.Name)
+	for _, ff := range feedFollows {
+		fmt.Printf("* %s\n", ff.FeedName)
+	}
+
+	return nil
+}
+
+func printFeedFollow(username, feedname string) {
+	fmt.Printf("* User:          %s\n", username)
+	fmt.Printf("* Feed:          %s\n", feedname)
 }
